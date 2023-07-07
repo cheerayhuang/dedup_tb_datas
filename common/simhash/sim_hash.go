@@ -52,7 +52,18 @@ func addHashVals(sum []uint16, hash []byte) {
 
 func Tokenize(s *string) [][]byte {
     ctn := strings.ToLower(*s)
-    words := bytes.Join(enWordsRegexp.FindAll([]byte(ctn), -1), []byte{})
+    if (len(ctn) > 1e9) {
+        mLog.Infof("len ctn: %d", len(ctn))
+
+    }
+
+    wordsArr := enWordsRegexp.FindAll([]byte(ctn), -1)
+    if (len(wordsArr) > 1e9) {
+        mLog.Infof("len ctn words: %d, one of them is %s.",
+            len(wordsArr), string(wordsArr[len(wordsArr)-2]))
+    }
+
+    words := bytes.Join(wordsArr, []byte{})
 
     return slide(words)
 }

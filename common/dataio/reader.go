@@ -70,6 +70,7 @@ func (d *DataIOps) ReadAndIndex(op string) error {
     var wg sync.WaitGroup
 
     var lineCount uint32 = 0
+    var encounterEOF bool = false
 
     for {
         buf := d.bytesPool.Get().([]byte)
@@ -89,11 +90,22 @@ func (d *DataIOps) ReadAndIndex(op string) error {
 		}
 
         bytesUntilNewLine, err := b.ReadBytes('\n')
+        if encounterEOF {
+            mLog.Warn("EOF had been encountered during the last reading.")
+            break;
+        }
         if err != nil {
             mLog.Infof("Reading an extra line from file <%s> failed, err: %s", d.fname, err)
             if err == io.EOF  {
+                encounterEOF = true
+                mLog.Infof("Ah! Encountered EOF when read extra line.")
                 if n == 0 {
                     break
+                } else {
+                    if len(bytesUntilNewLine) != 0 {
+                        mLog.Infof("append the rest of bytes though it encountered EOF, rest len: %d, buf len: %d, n: %d", len(bytesUntilNewLine), len(buf), n)
+                        buf = append(buf, bytesUntilNewLine...)
+                    }
                 }
             }
         } else {
@@ -119,9 +131,9 @@ func (d *DataIOps) ReadAndIndex(op string) error {
 
         wg.Add(1)
         go func() {
-            mLog.Infof("process total lines: %d", lineCount)
             d.process(lines, int(lineCount), op)
             atomic.AddUint32(&lineCount, uint32(len(lines)))
+            mLog.Infof("process total lines: %d", lineCount)
             wg.Done()
         }()
     }
@@ -161,8 +173,8 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
             for _, r := range similarRes {
                 mLog.WithFields(log.Fields{
                     "DUP": true,
-                }).Infof("curfile: <%s>, cur line: %d, ctn: <%s> is DUP of [<%s>, line: %d]",
-                    d.fname, lMeta.LineNum, l, r.FileName, r.LineNum)
+                }).Infof("[curfile: <%s>, sim hash: %d] is DUP of [<%s>, sim hash: %d]",
+                    d.fname, lMeta.SimHash, r.FileName, r.SimHash)
             }
 
         }
