@@ -1,0 +1,89 @@
+package simhash
+
+import (
+    "bytes"
+    "crypto/md5"
+    //"os"
+    "regexp"
+    "strings"
+    //"fmt"
+
+    log "github.com/sirupsen/logrus"
+)
+
+
+var (
+    enWordsRegexp = regexp.MustCompile(`\w+`)
+    width = 3
+
+    mLog = log.WithFields(log.Fields{
+        "module": "simhash",
+    })
+)
+
+//type weightMap = map[string]uint16
+
+func init() {
+    mLog.Logger.SetLevel(log.DebugLevel)
+    mLog.Logger.SetFormatter(&log.TextFormatter{
+        DisableColors: false,
+        FullTimestamp: true,
+    })
+    //log.SetOutput(os.Stdout)
+}
+
+
+func slide(b []byte) [][]byte {
+    res := make([][]byte, len(b)-width+1)
+    for i := 0; i < len(res); i++ {
+        res[i] = b[i:i+width]
+    }
+
+    return res
+}
+
+func addHashVals(sum []uint16, hash []byte) {
+    for i, v := range hash {
+        for j := 0; j < 8; j++ {
+            sum[i*8+j] += uint16((v >> (7-j)) & 0x01)
+        }
+    }
+}
+
+func Tokenize(s *string) [][]byte {
+    ctn := strings.ToLower(*s)
+    words := bytes.Join(enWordsRegexp.FindAll([]byte(ctn), -1), []byte{})
+
+    return slide(words)
+}
+
+func SimHashValue(s *string) (uint64, []uint16) {
+    tokens := Tokenize(s)
+    tokenLen := len(tokens)
+
+    sumFeatures := [64]uint16{0}
+    for _, t := range tokens {
+        hash := md5.Sum(t)
+        lastMD58bytes := hash[8:]
+        addHashVals(sumFeatures[0:], lastMD58bytes)
+
+    }
+
+    var res uint64 = 0
+    var p uint64 = 1
+    curBits := 0
+    segments := make([]uint16, 4)
+
+    for i := 63; i >= 0; i-- {
+        if sumFeatures[i] > uint16(tokenLen / 2) {
+            res += p
+        }
+        p *= 2
+        curBits++
+        if curBits % 16 == 0 {
+            segments[4-curBits/16] = uint16(res >> (curBits-16))
+        }
+    }
+
+    return res, segments
+}
