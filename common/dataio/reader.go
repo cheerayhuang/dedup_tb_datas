@@ -28,6 +28,7 @@ type lineContents struct {
 
 type DataIOps struct {
     fname string
+    outDir string
     f *os.File
 
     bytesPool sync.Pool
@@ -35,9 +36,10 @@ type DataIOps struct {
 
 }
 
-func NewDataIOps(fname string) (*DataIOps, error) {
+func NewDataIOps(fname string, outDir string) (*DataIOps, error) {
     r := new(DataIOps)
     r.fname = fname
+    r.outDir = outDir
 
     f, err := os.Open(fname)
     if err != nil {
@@ -176,6 +178,7 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
             similarRes, _ := globalIndices.NearBy(lMeta, keys)
             mLog.Infof("after looking up, res: %v", similarRes)
             // TODO: write a new file
+
             for _, r := range similarRes {
                 mLog.WithFields(log.Fields{
                     "DUP": true,
@@ -183,6 +186,9 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
                     d.fname, lMeta.SimHash, r.FileName, r.SimHash)
             }
 
+            if len(similarRes) == 0 {
+
+            }
         }
     }
 }

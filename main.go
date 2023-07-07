@@ -9,7 +9,9 @@ import (
 
     //"regexp"
     "flag"
+    "io/fs"
     "os"
+    "strings"
 
     //"dedup6.8T/common/simhash"
     "dedup6.8T/common/dataio"
@@ -33,55 +35,68 @@ func init() {
 }
 
 func main() {
-    /*
-    array := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xab, 0x01}
-    //array := []byte{0x00, 0x01, 0x08}
-    //array := []byte("a")
-    var num uint64
-    err := binary.Read(bytes.NewBuffer(array[:]), binary.BigEndian, &num)
-    fmt.Println(err)
-    fmt.Printf("%v, %x\n", array, num)
-
-
-    re := regexp.MustCompile(`\w+`)
-    TrimRes := re.FindAll([]byte("How are you? Fine, Thanks"), -1)
-
-    fmt.Println(string(bytes.Join(TrimRes, []byte{})))
-    */
-
-
-    // test
-    //str := "How are you? Fine, Thank you."
-    //mainLog.Debugln(simhash.SimHashValue(&str))
-
-    /*tokens := simhash.Tokenize(&str)
-
-    mainLog.Debugf("tokens list: ")
-    for _, v := range tokens {
-        mainLog.Debugf("%s ", string(v))
-    }*/
     var (
         srcFileName string
         targetFileName string
+        outDir string
     )
 
     flag.StringVar(&srcFileName, "src", "test.jsonl", "source data file/dir.")
     flag.StringVar(&targetFileName, "target", "test2.jsonl", "target data file/dir which needs removing dulications.")
+    flag.StringVar(&outDir, "out", "./out/", "the dir to store the data files removing duplications.")
     flag.Parse()
 
-    d, err := dataio.NewDataIOps(srcFileName)
-    if err != nil {
-        mainLog.Error("new dataio failed")
-        return
+    srcFiles := getJsonlFiles(&srcFileName)
+    for _, fname := range srcFiles {
+        d, err := dataio.NewDataIOps(fname, "")
+        if err != nil {
+            mainLog.Fatal("new dataio failed")
+        }
+        d.ReadAndIndex("index")
+        d.Close()
     }
-    d.ReadAndIndex("index")
-    d.Close()
 
-    d2, err := dataio.NewDataIOps(targetFileName)
-    if err != nil {
-        mainLog.Error("new dataio failed")
-        return
+    targetFiles := getJsonlFiles(&targetFileName)
+    for _, fname := range targetFiles {
+        if err := os.MkdirAll(outDir+"/"+fname+"/", 0750); err != nil {
+            mainLog.Fatal(err)
+        }
+
+        d, err := dataio.NewDataIOps(fname, outDir+"/"+fname+"/")
+        if err != nil {
+            mainLog.Fatal("new dataio failed")
+        }
+        d.ReadAndIndex("find")
+        d.Close()
     }
-    defer d2.Close()
-    d2.ReadAndIndex("find")
+
+}
+
+func getJsonlFiles(s *string) []string {
+    info, err := os.Stat(*s)
+    if err != nil {
+        mainLog.Errorf("souce file/dir path is invalid, err: %s", err)
+        return nil
+    }
+
+    res := make([]string, 0)
+    if info.IsDir() {
+        root := *s
+        fileSystem := os.DirFS(root)
+        fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+            if err != nil {
+                mainLog.Fatal(err)
+            }
+
+            if strings.Split(path, ".")[1] == "jsonl" {
+                res = append(res, path)
+            }
+
+            return nil
+        })
+    } else {
+        return []string{*s}
+    }
+
+    return res
 }
