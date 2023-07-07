@@ -18,7 +18,8 @@ var (
 )
 
 const (
-    readBytesPerOp = 64 * 1024 * 1024
+    readBytesPerOp = 96 * 1024 * 1024
+    //readBytesPerOp = 256
 )
 
 type lineContents struct {
@@ -160,6 +161,10 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
         lMeta.FileName = d.fname
         lMeta.LineNum = lineBegIndex+i+1
         hash, keys := simhash.SimHashValue(&ctn.Text)
+        if hash == 0 {
+            mLog.Warn("valid line, drop it.")
+            continue
+        }
         lMeta.SimHash = hash
         //mLog.Infof("contents hash: %d", hash)
 
@@ -169,6 +174,7 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
 
         if op == "find" {
             similarRes, _ := globalIndices.NearBy(lMeta, keys)
+            mLog.Infof("after looking up, res: %v", similarRes)
             // TODO: write a new file
             for _, r := range similarRes {
                 mLog.WithFields(log.Fields{

@@ -51,16 +51,25 @@ func addHashVals(sum []uint16, hash []byte) {
 }
 
 func Tokenize(s *string) [][]byte {
+    if (s == nil) {
+        mLog.Warn("Dunno why s is a nil pointer.")
+        return nil
+    }
     ctn := strings.ToLower(*s)
+    /*
     if (len(ctn) > 1e9) {
         mLog.Infof("len ctn: %d", len(ctn))
 
-    }
+    }*/
 
     wordsArr := enWordsRegexp.FindAll([]byte(ctn), -1)
+    /*
     if (len(wordsArr) > 1e9) {
         mLog.Infof("len ctn words: %d, one of them is %s.",
             len(wordsArr), string(wordsArr[len(wordsArr)-2]))
+    }*/
+    if len(wordsArr) < width {
+        return nil
     }
 
     words := bytes.Join(wordsArr, []byte{})
@@ -70,6 +79,9 @@ func Tokenize(s *string) [][]byte {
 
 func SimHashValue(s *string) (uint64, []uint16) {
     tokens := Tokenize(s)
+    if tokens == nil {
+        return 0, nil
+    }
     tokenLen := len(tokens)
 
     sumFeatures := [64]uint16{0}

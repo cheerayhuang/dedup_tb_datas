@@ -65,8 +65,8 @@ func main() {
         targetFileName string
     )
 
-    flag.StringVar(&srcFileName, "src", "test.jsonl", "source data file.")
-    flag.StringVar(&targetFileName, "target", "test2.jsonl", "target data file which needs removing dulications.")
+    flag.StringVar(&srcFileName, "src", "test.jsonl", "source data file/dir.")
+    flag.StringVar(&targetFileName, "target", "test2.jsonl", "target data file/dir which needs removing dulications.")
     flag.Parse()
 
     d, err := dataio.NewDataIOps(srcFileName)
@@ -74,8 +74,8 @@ func main() {
         mainLog.Error("new dataio failed")
         return
     }
-    defer d.Close()
     d.ReadAndIndex("index")
+    d.Close()
 
     d2, err := dataio.NewDataIOps(targetFileName)
     if err != nil {

@@ -9,7 +9,7 @@ var (
 )
 
 const (
-    newThreshold = 3
+    dupThreshold = 6
 )
 
 type LineMeta struct {
@@ -53,28 +53,35 @@ func (s *SimHashIndex) Insert(m *LineMeta, keys []uint16) error {
 }
 
 func (s* SimHashIndex) NearBy(m *LineMeta, keys []uint16) (LineMetaList, error) {
-    res := make(LineMetaList, 0)
 
-    resMap := make(map[*LineMeta]bool)
-    r, _ := s.lookup(m, s.indexHi32Hi16[keys[0]], resMap)
-    res = append(res, r...)
-    r, _ = s.lookup(m, s.indexHi32Lo16[keys[1]], resMap)
-    res = append(res, r...)
-    r, _ = s.lookup(m, s.indexLo32Hi16[keys[2]], resMap)
-    res = append(res, r...)
-    r, _ = s.lookup(m, s.indexLo32Lo16[keys[3]], resMap)
-    res = append(res, r...)
+    //resMap := make(map[*LineMeta]bool)
+    r, _ := s.lookup(m, s.indexHi32Hi16[keys[0]])
+    if len(r) > 0 {
+        return r, nil
+    }
 
-    mLog.Infof("after looking up, res: %v", res)
-    return res, nil
+    r, _ = s.lookup(m, s.indexHi32Lo16[keys[1]])
+    if len(r) > 0 {
+        return r, nil
+    }
+
+    r, _ = s.lookup(m, s.indexLo32Hi16[keys[2]])
+    if len(r) > 0 {
+        return r, nil
+    }
+    r, _ = s.lookup(m, s.indexLo32Lo16[keys[3]])
+
+    return r, nil
 }
 
-func (s *SimHashIndex) lookup(m *LineMeta, l LineMetaList, resMap map[*LineMeta]bool) (LineMetaList, error) {
+func (s *SimHashIndex) lookup(m *LineMeta, l LineMetaList) (LineMetaList, error) {
     r := make(LineMetaList, 0)
     for _, v := range l {
-        if !resMap[v] && distance(m.SimHash, v.SimHash) <= 3 {
+        //if !resMap[v] && distance(m.SimHash, v.SimHash) <= 3 {
+        if distance(m.SimHash, v.SimHash) < dupThreshold {
             r = append(r, v)
-            resMap[v] = true
+            return r, nil
+            //resMap[v] = true
         }
     }
 
