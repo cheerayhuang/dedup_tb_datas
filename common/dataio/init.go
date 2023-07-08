@@ -15,7 +15,8 @@ var (
 )
 
 func init() {
-    mLog.Logger.SetLevel(log.DebugLevel)
+    //mLog.Logger.SetLevel(log.DebugLevel)
+    mLog.Logger.SetLevel(log.InfoLevel)
     mLog.Logger.SetFormatter(&log.TextFormatter{
         DisableColors: false,
         FullTimestamp: true,

@@ -26,7 +26,7 @@ var (
 )
 
 func init() {
-    mainLog.Logger.SetLevel(log.DebugLevel)
+    mainLog.Logger.SetLevel(log.InfoLevel)
     mainLog.Logger.SetFormatter(&log.TextFormatter{
         DisableColors: false,
         FullTimestamp: true,
@@ -57,11 +57,10 @@ func main() {
             mainLog.Fatal("new dataio failed")
         }
         d.ReadAndIndex("index")
-        d.Close()
+        //d.Close()
     }
 
     targetFiles := jsonlFiles(&targetFileName)
-    mainLog.Debugf("target files: %v", targetFiles)
     if targetFiles == nil {
         return
     }
@@ -77,7 +76,7 @@ func main() {
             mainLog.Fatal("new dataio failed")
         }
         d.ReadAndIndex("find")
-        d.Close()
+        //d.Close()
     }
 
 }
@@ -96,7 +95,17 @@ func jsonlFiles(s *string) []string {
             if err != nil {
                 mainLog.Fatal(err)
             }
-            if strings.Split(path, ".")[1] == "jsonl" {
+            info, err := os.Stat(root + "/" + path)
+            if err != nil {
+                mainLog.Fatal(err)
+            }
+            if info.IsDir() {
+                mainLog.Infof("skip dir: %s", root+"/"+path)
+                return nil
+            }
+            ext := strings.Split(path, ".")
+            mainLog.Infof("ext: %v", ext)
+            if ext[len(ext)-1] == "jsonl" {
                 res = append(res, root + "/" + path)
             }
 

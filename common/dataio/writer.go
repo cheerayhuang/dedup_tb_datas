@@ -4,22 +4,18 @@ import (
     "bufio"
     "os"
     "strconv"
-    "sync"
+    "sync/atomic"
 )
 
 func (d *DataIOps) booterWriting() {
-    var wg sync.WaitGroup
-
     for i := 0; i < d.writeGoroutineNum; i++ {
-        wg.Add(1)
-        go d.writeFile(i, &wg)
+        d.writeGoroutineWg.Add(1)
+        go d.writeFile(i)
     }
-
-    wg.Wait()
 }
 
-func (d *DataIOps) writeFile(goIndex int, wg *sync.WaitGroup) {
-    defer wg.Done()
+func (d *DataIOps) writeFile(goIndex int) {
+    defer d.writeGoroutineWg.Done()
 
     fname := d.outDir + "/" + strconv.Itoa(goIndex) + ".jsonl"
     f, err := os.Create(fname)
@@ -33,7 +29,11 @@ func (d *DataIOps) writeFile(goIndex int, wg *sync.WaitGroup) {
     for line := range d.writeAsyncChan {
         _, err := w.WriteString(line+"\n")
         if err != nil {
-            mLog.Warnf("Write line to <%s> failed, line: %s, err: %s", fname, line, err)
+            mLog.Warnf("try to write line to <%s> failed, line: %s, err: %s", fname, line, err)
         }
+        atomic.AddInt32(&d.toWriteLineNums, -1)
+        //mLog.Infof("Finish trying to write line on goroutine %d", goIndex)
     }
+    w.Flush()
+    mLog.Infof("flush file on goroutine %d", goIndex)
 }
