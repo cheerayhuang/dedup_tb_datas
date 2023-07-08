@@ -46,9 +46,12 @@ func main() {
     flag.StringVar(&outDir, "out", "./out/", "the dir to store the data files removing duplications.")
     flag.Parse()
 
-    srcFiles := getJsonlFiles(&srcFileName)
+    srcFiles := jsonlFiles(&srcFileName)
+    if srcFiles == nil {
+        return
+    }
     for _, fname := range srcFiles {
-        d, err := dataio.NewDataIOps(fname, "")
+        d, err := dataio.NewDataIOps(fname, "", 0)
         if err != nil {
             mainLog.Fatal("new dataio failed")
         }
@@ -56,13 +59,17 @@ func main() {
         d.Close()
     }
 
-    targetFiles := getJsonlFiles(&targetFileName)
+    targetFiles := jsonlFiles(&targetFileName)
+    mainLog.Debugf("target files: %v", targetFiles)
+    if targetFiles == nil {
+        return
+    }
     for _, fname := range targetFiles {
         if err := os.MkdirAll(outDir+"/"+fname+"/", 0750); err != nil {
             mainLog.Fatal(err)
         }
 
-        d, err := dataio.NewDataIOps(fname, outDir+"/"+fname+"/")
+        d, err := dataio.NewDataIOps(fname, outDir+"/"+fname+"/", 10)
         if err != nil {
             mainLog.Fatal("new dataio failed")
         }
@@ -72,10 +79,10 @@ func main() {
 
 }
 
-func getJsonlFiles(s *string) []string {
+func jsonlFiles(s *string) []string {
     info, err := os.Stat(*s)
     if err != nil {
-        mainLog.Errorf("souce file/dir path is invalid, err: %s", err)
+        mainLog.Errorf("%s", err)
         return nil
     }
 
