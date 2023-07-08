@@ -31,6 +31,7 @@ func init() {
         DisableColors: false,
         FullTimestamp: true,
     })
+    mainLog.Logger.SetLevel(log.DebugLevel)
     log.SetOutput(os.Stdout)
 }
 
@@ -65,11 +66,13 @@ func main() {
         return
     }
     for _, fname := range targetFiles {
-        if err := os.MkdirAll(outDir+"/"+fname+"/", 0750); err != nil {
+        names := strings.Split(fname, "/")
+        fileName := names[len(names)-1]
+        if err := os.MkdirAll(outDir+"/"+fileName+"/", 0750); err != nil {
             mainLog.Fatal(err)
         }
 
-        d, err := dataio.NewDataIOps(fname, outDir+"/"+fname+"/", 10)
+        d, err := dataio.NewDataIOps(fname, outDir+"/"+fileName+"/", 10)
         if err != nil {
             mainLog.Fatal("new dataio failed")
         }
@@ -82,8 +85,7 @@ func main() {
 func jsonlFiles(s *string) []string {
     info, err := os.Stat(*s)
     if err != nil {
-        mainLog.Errorf("%s", err)
-        return nil
+        mainLog.Fatal(err)
     }
 
     res := make([]string, 0)
@@ -94,9 +96,8 @@ func jsonlFiles(s *string) []string {
             if err != nil {
                 mainLog.Fatal(err)
             }
-
             if strings.Split(path, ".")[1] == "jsonl" {
-                res = append(res, path)
+                res = append(res, root + "/" + path)
             }
 
             return nil
