@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-    "strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"dedup6.8T/common/simhash"
 	log "github.com/sirupsen/logrus"
@@ -19,7 +19,7 @@ var (
 )
 
 const (
-    readBytesPerOp = 96 * 1024 * 1024
+    readBytesPerOp = 4 * 1024 * 1024
     //readBytesPerOp = 256
 )
 
@@ -37,6 +37,9 @@ type DataIOps struct {
 
     writeAsyncChan chan string
     writeGoroutineNum int
+    writeGoroutineWg sync.WaitGroup
+
+    toWriteLineNums int32
 }
 
 func NewDataIOps(fname string, outDir string, writeGoroutineNum int) (*DataIOps, error) {
@@ -61,8 +64,12 @@ func NewDataIOps(fname string, outDir string, writeGoroutineNum int) (*DataIOps,
 		return lines
 	}}
 
-    r.writeAsyncChan = make(chan string, 4*1024*1024)
     r.writeGoroutineNum = writeGoroutineNum
+    if writeGoroutineNum > 0 {
+        r.writeAsyncChan = make(chan string, 256*1024)
+    }
+
+    r.toWriteLineNums = 0
 
     go r.booterWriting()
 
@@ -148,8 +155,28 @@ func (d *DataIOps) ReadAndIndex(op string) error {
             wg.Done()
         }()
     }
+    d.Close()
 
     wg.Wait()
+
+    mLog.Infof("file <%s>, out loop...", d.fname)
+    if d.writeAsyncChan != nil && d.writeGoroutineNum != 0{
+        interval := time.Tick(50 * time.Millisecond)
+        for {
+            select {
+            case <-interval:
+                // wait writing all lines
+                if atomic.LoadInt32(&d.toWriteLineNums) == 0 {
+                    close(d.writeAsyncChan)
+
+                    // wait all writer goroutines exiting.
+                    d.writeGoroutineWg.Wait()
+                    return nil
+                }
+                mLog.Infof("file <%s> toWriteLineNums: %d", d.fname, atomic.LoadInt32(&d.toWriteLineNums))
+            }
+        }
+    }
 
     return nil
 }
@@ -169,7 +196,7 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
 
         lMeta := new(simhash.LineMeta)
         lMeta.FileName = d.fname
-        lMeta.LineNum = lineBegIndex+i+1
+        //lMeta.LineNum = lineBegIndex+i+1
         hash, keys := simhash.SimHashValue(&ctn.Text)
         if hash == 0 {
             mLog.Warn("valid line, drop it.")
@@ -193,40 +220,10 @@ func (d *DataIOps) process(lines []string, lineBegIndex int, op string) {
             }
 
             if len(similarRes) == 0 {
+                //mLog.Debugf("ready to write the line: %s", l)
+                atomic.AddInt32(&d.toWriteLineNums, 1)
                 d.writeAsyncChan <- l
             }
-        }
-    }
-}
-
-
-func (d *DataIOps) booterWriting() {
-    var wg sync.WaitGroup
-
-    for i := 0; i < d.writeGoroutineNum; i++ {
-        wg.Add(1)
-        go d.writeFile(i, &wg)
-    }
-
-    wg.Wait()
-}
-
-func (d *DataIOps) writeFile(goIndex int, wg *sync.WaitGroup) {
-    defer wg.Done()
-
-    fname := d.outDir + "/" + strconv.Itoa(goIndex) + ".jsonl"
-    f, err := os.Create(fname)
-    if err != nil {
-        mLog.Fatal("Create output file <%s> failed, err: %s", fname, err)
-    }
-    defer f.Close()
-
-    w := bufio.NewWriter(f)
-
-    for line := range d.writeAsyncChan {
-        _, err := w.WriteString(line+"\n")
-        if err != nil {
-            mLog.Warnf("Write line to <%s> failed, line: %s, err: %s", fname, line, err)
         }
     }
 }

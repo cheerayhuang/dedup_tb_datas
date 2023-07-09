@@ -14,7 +14,7 @@ const (
 
 type LineMeta struct {
     SimHash uint64
-    LineNum int
+    //LineNum int
     FileName   string
 }
 

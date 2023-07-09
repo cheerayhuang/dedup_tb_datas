@@ -26,11 +26,12 @@ var (
 )
 
 func init() {
-    mainLog.Logger.SetLevel(log.DebugLevel)
+    mainLog.Logger.SetLevel(log.InfoLevel)
     mainLog.Logger.SetFormatter(&log.TextFormatter{
         DisableColors: false,
         FullTimestamp: true,
     })
+    mainLog.Logger.SetLevel(log.DebugLevel)
     log.SetOutput(os.Stdout)
 }
 
@@ -56,25 +57,26 @@ func main() {
             mainLog.Fatal("new dataio failed")
         }
         d.ReadAndIndex("index")
-        d.Close()
+        //d.Close()
     }
 
     targetFiles := jsonlFiles(&targetFileName)
-    mainLog.Debugf("target files: %v", targetFiles)
     if targetFiles == nil {
         return
     }
     for _, fname := range targetFiles {
-        if err := os.MkdirAll(outDir+"/"+fname+"/", 0750); err != nil {
+        names := strings.Split(fname, "/")
+        fileName := names[len(names)-1]
+        if err := os.MkdirAll(outDir+"/"+fileName+"/", 0750); err != nil {
             mainLog.Fatal(err)
         }
 
-        d, err := dataio.NewDataIOps(fname, outDir+"/"+fname+"/", 10)
+        d, err := dataio.NewDataIOps(fname, outDir+"/"+fileName+"/", 10)
         if err != nil {
             mainLog.Fatal("new dataio failed")
         }
         d.ReadAndIndex("find")
-        d.Close()
+        //d.Close()
     }
 
 }
@@ -82,8 +84,7 @@ func main() {
 func jsonlFiles(s *string) []string {
     info, err := os.Stat(*s)
     if err != nil {
-        mainLog.Errorf("%s", err)
-        return nil
+        mainLog.Fatal(err)
     }
 
     res := make([]string, 0)
@@ -94,9 +95,18 @@ func jsonlFiles(s *string) []string {
             if err != nil {
                 mainLog.Fatal(err)
             }
-
-            if strings.Split(path, ".")[1] == "jsonl" {
-                res = append(res, path)
+            info, err := os.Stat(root + "/" + path)
+            if err != nil {
+                mainLog.Fatal(err)
+            }
+            if info.IsDir() {
+                mainLog.Infof("skip dir: %s", root+"/"+path)
+                return nil
+            }
+            ext := strings.Split(path, ".")
+            mainLog.Infof("ext: %v", ext)
+            if ext[len(ext)-1] == "jsonl" {
+                res = append(res, root + "/" + path)
             }
 
             return nil
